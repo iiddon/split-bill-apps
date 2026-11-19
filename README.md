@@ -28,10 +28,10 @@ Nama menu di GitHub, Cloudflare, dan Anthropic Console bisa sedikit berbeda dari
 ## Langkah 1 — Upload ke GitHub dan aktifkan GitHub Pages
 
 1. Masuk ke **github.com**, klik **New repository**.
-2. Isi nama `splitbill`, pilih **Public** (GitHub Pages gratis untuk repo publik), lalu **Create repository**.
+2. Isi nama `split-bill-apps`, pilih **Public** (GitHub Pages gratis untuk repo publik), lalu **Create repository**.
 3. Klik tautan **uploading an existing file**, lalu seret **semua isi folder ini** (termasuk folder `icons` dan `server`) ke halaman itu. Klik **Commit changes**.
 4. Buka **Settings → Pages**. Di **Build and deployment**, pilih **Deploy from a branch**, branch **main**, folder **/ (root)**, lalu **Save**.
-5. Tunggu 1–2 menit. Alamat aplikasimu: `https://USERNAME.github.io/splitbill/`
+5. Tunggu 1–2 menit. Alamat aplikasimu: `https://USERNAME.github.io/split-bill-apps/`
 
 Catat juga **origin**-nya, yaitu alamat tanpa nama repo: `https://USERNAME.github.io`. Ini dipakai di Langkah 3.
 
@@ -55,7 +55,7 @@ Catat juga **origin**-nya, yaitu alamat tanpa nama repo: `https://USERNAME.githu
    |---|---|---|
    | `ANTHROPIC_API_KEY` | Secret | API key dari Langkah 2 |
    | `ACCESS_CODE` | Secret | Kode akses buatanmu, minimal 8 karakter, mis. `kopisusu-0811` |
-   | `ALLOWED_ORIGIN` | Text | `https://USERNAME.github.io` (tanpa `/splitbill` dan tanpa garis miring di akhir) |
+   | `ALLOWED_ORIGIN` | Text | `https://USERNAME.github.io` (tanpa `/split-bill-apps` dan tanpa garis miring di akhir) |
    | `DAILY_LIMIT` | Text | Opsional. Batas scan per hari, default `50` |
 
    Lalu klik **Deploy**.
@@ -111,7 +111,7 @@ Mau lebih hemat? Tambahkan variabel `MODEL` dengan isi `claude-haiku-5-5` di Clo
 
 | Pesan / gejala | Penyebab dan solusinya |
 |---|---|
-| "Alamat web app ini belum diizinkan" | `ALLOWED_ORIGIN` harus persis `https://USERNAME.github.io`, tanpa `/splitbill` dan tanpa `/` di akhir. |
+| "Alamat web app ini belum diizinkan" | `ALLOWED_ORIGIN` harus persis `https://USERNAME.github.io`, tanpa `/split-bill-apps` dan tanpa `/` di akhir. |
 | "Kode akses salah" | Samakan kode di Pengaturan aplikasi dengan `ACCESS_CODE` di Cloudflare. Perhatikan huruf besar/kecil. |
 | "Server belum lengkap" | `ANTHROPIC_API_KEY` atau `ACCESS_CODE` belum diisi, atau Worker belum di-Deploy ulang setelah diisi. |
 | "API key Anthropic tidak valid" | Key salah salin atau sudah dihapus. Buat key baru dan ganti di Cloudflare. |
