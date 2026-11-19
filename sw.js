@@ -1,5 +1,5 @@
 // Split Bill Struk – service worker: aplikasi tetap terbuka walau sinyal hilang.
-const VERSION = "splitbill-v2";
+const VERSION = "splitbill-v3";
 const SHELL = ["./", "./index.html", "./manifest.json", "./icons/icon-192.png", "./icons/icon-512.png", "./icons/maskable-512.png", "./icons/apple-touch-icon.png", "./icons/favicon.png"];
 
 self.addEventListener("install", e => {

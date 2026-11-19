@@ -920,15 +920,21 @@ label.iconbtn{position:relative;cursor:pointer;color:var(--ink)}
   });
 
   /* people */
-  function sheetAddPerson(){
-    const b=cur();S.sheet={type:"addPerson"};
+  function apDynHtml(b){
     const names=knownNames(b);
-    openSheet(`${grab}<div class="sh"><h2>Siapa saja yang ikut?</h2></div>
-      <form class="frow" data-form="add-person"><label class="lbl">Nama<input class="inp" id="pName" placeholder="mis. Rina" autocomplete="off"></label><button class="btn teal" type="submit">Tambah</button></form>
-      ${b.people.length?`<div style="display:flex;flex-direction:column;gap:8px"><b style="font-size:14px">Di tagihan ini</b><div class="namechips">${b.people.map(p=>`<button type="button" class="x" data-act="rm-person-quick" data-pid="${p.id}" aria-label="Hapus ${esc(p.name)}">${esc(p.name)} ${I.x}</button>`).join("")}</div></div>`:""}
+    return `${b.people.length?`<div style="display:flex;flex-direction:column;gap:8px"><b style="font-size:14px">Di tagihan ini</b><div class="namechips">${b.people.map(p=>`<button type="button" class="x" data-act="rm-person-quick" data-pid="${p.id}" aria-label="Hapus ${esc(p.name)}">${esc(p.name)} ${I.x}</button>`).join("")}</div></div>`:""}
       ${names.length?`<div style="display:flex;flex-direction:column;gap:8px"><b style="font-size:14px">Teman sebelumnya</b><div class="namechips">${names.map((n,i)=>`<button type="button" data-act="add-name" data-name="${esc(n)}"><span class="av" style="--c:${COLORS[i%COLORS.length]}">${esc(ini(n))}</span>${esc(n)}</button>`).join("")}</div></div>`:""}
       ${S.groups.length?`<div style="display:flex;flex-direction:column;gap:8px"><b style="font-size:14px">Pakai grup</b><div class="namechips">${S.groups.map(g=>`<button type="button" data-act="use-group" data-gid="${g.id}" style="padding:0 14px">${esc(g.name)} · ${g.members.length} orang</button>`).join("")}</div></div>`:""}
-      <div class="sacts">${b.people.length>=2?`<button type="button" class="btn" data-act="save-as-group">Simpan jadi grup</button>`:""}<button type="button" class="btn teal big grow" data-act="sheet-done">Selesai</button></div>`);
+      <div class="sacts">${b.people.length>=2?`<button type="button" class="btn" data-act="save-as-group">Simpan jadi grup</button>`:""}<button type="button" class="btn teal big grow" data-act="sheet-done">Selesai</button></div>`;
+  }
+  function sheetAddPerson(){
+    const b=cur();
+    // already open: refresh only the lists, so the name field keeps focus and the keyboard stays put
+    if(S.sheet&&S.sheet.type==="addPerson"&&$("apDyn")){$("apDyn").innerHTML=apDynHtml(b);return;}
+    S.sheet={type:"addPerson"};
+    openSheet(`${grab}<div class="sh"><h2>Siapa saja yang ikut?</h2></div>
+      <form class="frow" data-form="add-person"><label class="lbl">Nama<input class="inp" id="pName" placeholder="mis. Rina" autocomplete="off" enterkeyhint="done"></label><button class="btn teal" type="submit">Tambah</button></form>
+      <div id="apDyn" style="display:flex;flex-direction:column;gap:18px">${apDynHtml(b)}</div>`);
     setTimeout(()=>{const f=$("pName");f&&f.focus();},60);
   }
   function sheetPerson(pid){
@@ -1009,12 +1015,13 @@ label.iconbtn{position:relative;cursor:pointer;color:var(--ink)}
     S.sheet={type:"group",gid:gid||null,draft:{name:g?g.name:(preset&&preset.name)||"",members:g?[...g.members]:((preset&&preset.members)||[])}};
     renderGroupSheet();
   }
+  function gChipsHtml(d){return d.members.length?`<div class="namechips">${d.members.map((m,i)=>`<button type="button" class="x" data-act="g-rm" data-i="${i}" aria-label="Hapus ${esc(m)}">${esc(m)} ${I.x}</button>`).join("")}</div>`:`<p class="small">Belum ada anggota.</p>`;}
   function renderGroupSheet(){
     const d=S.sheet.draft;
     openSheet(`${grab}<div class="sh"><h2>${S.sheet.gid?"Edit grup":"Grup baru"}</h2></div>
       <label class="lbl">Nama grup<input class="inp" id="gName" value="${esc(d.name)}" placeholder="mis. Tim kantor" autocomplete="off"></label>
-      <form class="frow" data-form="g-add"><label class="lbl">Tambah anggota<input class="inp" id="gMember" placeholder="Nama" autocomplete="off"></label><button class="btn" type="submit">Tambah</button></form>
-      ${d.members.length?`<div class="namechips">${d.members.map((m,i)=>`<button type="button" class="x" data-act="g-rm" data-i="${i}" aria-label="Hapus ${esc(m)}">${esc(m)} ${I.x}</button>`).join("")}</div>`:`<p class="small">Belum ada anggota.</p>`}
+      <form class="frow" data-form="g-add"><label class="lbl">Tambah anggota<input class="inp" id="gMember" placeholder="Nama" autocomplete="off" enterkeyhint="done"></label><button class="btn" type="submit">Tambah</button></form>
+      <div id="gChips">${gChipsHtml(d)}</div>
       <div class="sacts">${S.sheet.gid?`<button type="button" class="btn danger" data-act="g-del">Hapus grup</button>`:""}<button type="button" class="btn teal big grow" data-act="g-save">Simpan grup</button></div>`);
   }
 
@@ -1122,7 +1129,7 @@ label.iconbtn{position:relative;cursor:pointer;color:var(--ink)}
     "group-new":()=>sheetGroup(null),
     "group-edit":el=>sheetGroup(el.dataset.gid),
     "group-use":el=>{const g=S.groups.find(x=>x.id===el.dataset.gid);if(!g)return;const b=newBill(g.name);g.members.forEach(m=>addPerson(b,m));saveBill(b);S.curId=b.id;go("items");},
-    "g-rm":el=>{S.sheet.draft.name=$("gName").value;S.sheet.draft.members.splice(Number(el.dataset.i),1);renderGroupSheet();},
+    "g-rm":el=>{S.sheet.draft.members.splice(Number(el.dataset.i),1);$("gChips").innerHTML=gChipsHtml(S.sheet.draft);},
     "g-del":el=>armed(el,"Tap lagi untuk hapus",()=>{S.groups=S.groups.filter(g=>g.id!==S.sheet.gid);saveGroups();closeSheet();render();}),
     "g-save":()=>{
       const d=S.sheet.draft;d.name=$("gName").value.trim();const extra=$("gMember").value.trim();if(extra&&!d.members.includes(extra))d.members.push(extra);
@@ -1168,14 +1175,17 @@ label.iconbtn{position:relative;cursor:pointer;color:var(--ink)}
   }
   function removePerson(pid){const b=cur();if(b.payerId===pid)b.payerId=null;b.people=b.people.filter(p=>p.id!==pid);b.items.forEach(i=>i.who=(i.who||[]).filter(w=>w!==pid));saveBill(b);render();}
   document.addEventListener("click",e=>{const el=e.target.closest("[data-act]");if(!el||el.disabled)return;const f=A[el.dataset.act];if(f){e.preventDefault();f(el,e);}});
+  // tapping "Tambah" must not pull focus from the name field, or the keyboard closes and reopens
+  document.addEventListener("mousedown",e=>{if(e.target.closest('form[data-form="add-person"] button,form[data-form="g-add"] button'))e.preventDefault();});
   document.addEventListener("submit",e=>{
     const f=e.target.dataset.form;if(!f)return;e.preventDefault();const b=cur();
-    if(f==="add-person"){const v=$("pName").value;if(!v.trim())return;if(addPerson(b,v)){saveBill(b);render();}else toast("Nama itu sudah ada");sheetAddPerson();}
+    if(f==="add-person"){const inp=$("pName");const v=inp.value;if(!v.trim())return;if(addPerson(b,v)){saveBill(b);render();inp.value="";}else toast("Nama itu sudah ada");sheetAddPerson();}
     if(f==="rename-person"){const p=b.people.find(x=>x.id===S.sheet.pid);const v=$("pRename").value.trim();if(p&&v){p.name=v;saveBill(b);}closeSheet();render();}
     if(f==="rename-bill"){const v=$("bTitle").value.trim();if(v){b.title=v;saveBill(b);}closeSheet();render();}
     if(f==="ev-create"){const v=$("evName").value.trim();if(!v){$("evName").focus();return;}const ev={id:uid(),name:v,createdAt:Date.now()};S.events.unshift(ev);saveEvents();b.eventId=ev.id;saveBill(b);closeSheet();render();toast(`Acara ${v} dibuat`);}
     if(f==="ev-rename"){const ev=evOf(S.eventId);const v=$("evTitle").value.trim();if(ev&&v){ev.name=v;saveEvents();}closeSheet();render();}
-    if(f==="g-add"){const v=$("gMember").value.trim();S.sheet.draft.name=$("gName").value;if(v&&!S.sheet.draft.members.some(m=>m.toLowerCase()===v.toLowerCase()))S.sheet.draft.members.push(v);renderGroupSheet();setTimeout(()=>$("gMember").focus(),30);}
+    if(f==="g-add"){const inp=$("gMember");const v=inp.value.trim();if(!v)return;if(S.sheet.draft.members.some(m=>m.toLowerCase()===v.toLowerCase())){toast("Nama itu sudah ada");return;}
+      S.sheet.draft.members.push(v);inp.value="";$("gChips").innerHTML=gChipsHtml(S.sheet.draft);}
   });
 
   /* ---------- copy & image ---------- */
