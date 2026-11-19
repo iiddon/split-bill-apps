@@ -1586,11 +1586,20 @@ Aturan:
     if(!d||!/^[a-z0-9-]{8,64}$/i.test(d)){d=(crypto.randomUUID?crypto.randomUUID():uid()+"-"+uid());try{localStorage.setItem("splitbill-device",d);}catch(e){}}
     return d;
   }
+  let legacyServer=false;
+  async function workerFetch(url,opt){
+    const h=Object.assign({},opt.headers);
+    if(!legacyServer){
+      try{return await fetch(url,Object.assign({},opt,{headers:Object.assign({},h,{"x-device-id":deviceId()})}));}
+      catch(e){if(e&&e.name==="AbortError")throw e;}
+    }
+    const r=await fetch(url,Object.assign({},opt,{headers:h}));legacyServer=true;return r;
+  }
   async function readWithWorker(file){
     const blob=await shrink(file);
     const b64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(",")[1]||"");r.onerror=rej;r.readAsDataURL(blob);});
     const ctl=new AbortController();const t=setTimeout(()=>ctl.abort(),90000);let resp;
-    try{resp=await fetch(workerBase(),{method:"POST",headers:{"content-type":"text/plain","x-access-code":S.settings.accessCode||"","x-device-id":deviceId()},body:b64,signal:ctl.signal});}
+    try{resp=await workerFetch(workerBase(),{method:"POST",headers:{"content-type":"text/plain","x-access-code":S.settings.accessCode||""},body:b64,signal:ctl.signal});}
     catch(e){throw new Error(e&&e.name==="AbortError"?"Server terlalu lama menjawab. Coba lagi.":"Server pembaca struk tidak bisa dihubungi. Cek internet atau alamat server di Pengaturan.");}
     finally{clearTimeout(t);}
     let j={};try{j=await resp.json();}catch(e){}
@@ -1601,8 +1610,9 @@ Aturan:
     const out=$("testRes");const say=(t,ok)=>{if(out){out.textContent=t;out.style.color=ok?"var(--teal-ink)":"var(--danger)";}};
     const url=$("setWorker").value.trim().replace(/\/+$/,"");if(!url){say("Isi alamat server dulu.");return;}
     say("Menghubungi server…",true);
-    try{const r=await fetch(url,{headers:{"x-access-code":$("setCode").value.trim(),"x-device-id":deviceId()}});let j={};try{j=await r.json();}catch(e){}
-      if(r.ok&&j.ok)say(`Tersambung sebagai ${j.name||"pengguna"}. ${j.remaining==null?"Tanpa batas harian.":`Sisa hari ini: ${j.remaining} dari ${j.limit} scan.`}`,true);
+    try{legacyServer=false;const r=await workerFetch(url,{headers:{"x-access-code":$("setCode").value.trim()}});let j={};try{j=await r.json();}catch(e){}
+      if(r.ok&&j.ok)say(legacyServer?"Tersambung, tapi server masih versi lama. Tempel ulang worker.js terbaru di Cloudflare supaya kode per teman bisa dipakai."
+        :`Tersambung sebagai ${j.name||"pengguna"}. ${j.remaining==null?"Tanpa batas harian.":`Sisa hari ini: ${j.remaining} dari ${j.limit} scan.`}`,true);
       else say(j.error||`Gagal (kode ${r.status}).`);}
     catch(e){say("Tidak bisa terhubung. Cek alamat server dan izin ALLOWED_ORIGIN.");}
   }
