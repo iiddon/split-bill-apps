@@ -712,6 +712,7 @@ label.iconbtn{position:relative;cursor:pointer;color:var(--ink)}
       <button type="button" class="btn" data-act="ev-add-existing">Ambil dari riwayat</button>
     </section>
     <div class="acts2">
+      <button type="button" class="btn dark big" data-act="ok-home">OK, kembali ke Beranda</button>
       <button type="button" class="btn teal big" data-act="share-img" ${E.people.length?"":"disabled"}>${I.share}Bagikan rekap acara</button>
       <div class="row"><button type="button" class="btn" data-act="copy-text" ${E.people.length?"":"disabled"}>Salin teks</button><button type="button" class="btn" data-act="save-img" ${E.people.length?"":"disabled"}>Simpan gambar</button></div>
       <button type="button" class="btn ghost danger" data-act="ev-del">Bubarkan acara</button>
@@ -794,6 +795,7 @@ label.iconbtn{position:relative;cursor:pointer;color:var(--ink)}
       ${cards&&idle.length?`<p class="small" style="text-align:center">Tidak ditampilkan karena tidak ikut item: ${esc(idle.map(p=>p.name).join(", "))}</p>`:""}
     </section>
     <div class="acts2">
+      <button type="button" class="btn dark big" data-act="ok-home">OK, kembali ke Beranda</button>
       <button type="button" class="btn teal big" data-act="share-img" ${b.people.length?"":"disabled"}>${I.share}Bagikan gambar ke grup</button>
       <div class="row"><button type="button" class="btn" data-act="copy-text" ${b.people.length?"":"disabled"}>Salin teks</button><button type="button" class="btn" data-act="save-img" ${b.people.length?"":"disabled"}>Simpan gambar</button></div>
       <button type="button" class="btn ghost danger" data-act="del-bill">Hapus tagihan ini</button>
@@ -805,7 +807,7 @@ label.iconbtn{position:relative;cursor:pointer;color:var(--ink)}
     if((S.view==="summary"&&cur()&&cur().people.length)||(S.view==="event"&&evOf(S.eventId)))setTimeout(prepareShot,30);
   }
   /* navigation: each screen (and an open sheet) is a #hash entry, so the phone's back button steps back inside the app */
-  const SH="-lembar";const stk=[];let replacing=false;
+  const SH="-lembar";const stk=[];let replacing=false,jumpTo=null;
   function hashFor(view){
     if(view==="history")return "#riwayat";if(view==="friends")return "#teman";
     if(view==="debt"&&S.debtSlug)return "#rekap-"+S.debtSlug;
@@ -815,7 +817,8 @@ label.iconbtn{position:relative;cursor:pointer;color:var(--ink)}
   }
   function route(){
     const full=location.hash||"#beranda";
-    if(replacing){stk[stk.length-1]=full;replacing=false;}
+    if(jumpTo!==null&&stk[jumpTo]===full){stk.length=jumpTo+1;jumpTo=null;}
+    else if(replacing){stk[stk.length-1]=full;replacing=false;}
     else if(stk.length>1&&stk[stk.length-2]===full)stk.pop();
     else if(stk[stk.length-1]!==full)stk.push(full);
     const sheetHash=full.endsWith(SH);const h=sheetHash?full.slice(0,-SH.length):full;
@@ -833,6 +836,11 @@ label.iconbtn{position:relative;cursor:pointer;color:var(--ink)}
     const h=hashFor(view);
     if(location.hash===h){S.view=view;render();return;}
     if(replace){replacing=true;location.replace(h);}else location.hash=h;
+  }
+  function okHome(){
+    const i=stk.lastIndexOf("#beranda");
+    if(i>=0&&i<stk.length-1){jumpTo=i;history.go(i-(stk.length-1));}
+    else go("home",true);
   }
   function backTo(view){const h=hashFor(view);if(stk.length>1&&stk[stk.length-2]===h)history.back();else go(view,true);}
 
@@ -1036,6 +1044,7 @@ label.iconbtn{position:relative;cursor:pointer;color:var(--ink)}
   const A={
     "nav":el=>go(el.dataset.view),
     "back":el=>backTo(el.dataset.view),
+    "ok-home":()=>okHome(),
     "new-manual":()=>{const b=newBill();saveBill(b);S.curId=b.id;go("items");sheetAddPerson();},
     "open-bill":el=>openBill(el.dataset.id),
     "go-items":()=>go("items"),
@@ -1328,22 +1337,21 @@ label.iconbtn{position:relative;cursor:pointer;color:var(--ink)}
   function canShareFile(){try{return !!(navigator.share&&navigator.canShare&&navigator.canShare({files:[shotFile()]}));}catch(e){return false;}}
   function shareNow(){ // called straight from the tap, so the browser treats it as the user's action
     if(!shotReady()){toast("Menyiapkan gambar…");prepareShot().then(r=>{if(r)openPreview();});return;}
-    if(canShareFile()){navigator.share({files:[shotFile()],title:"Tagihan split bill"}).catch(e=>{if(e&&e.name!=="AbortError")openPreview();});return;}
-    openPreview();
+    openPreview(true);
   }
   function saveNow(){
     if(!shotReady()){toast("Menyiapkan gambar…");prepareShot().then(r=>{if(r)openPreview();});return;}
     doSave();
   }
-  function openPreview(){
+  function openPreview(forShare){
     if(!shotReady())return;
     const canShare=canShareFile();
     const canCopy=!window.claude&&!!(window.ClipboardItem&&navigator.clipboard&&navigator.clipboard.write);
     S.sheet={type:"share"};
-    openSheet(`${grab}<div class="sh"><h2>Gambar tagihan</h2></div>
+    openSheet(`${grab}<div class="sh"><div style="display:flex;flex-direction:column;gap:2px"><span class="k">${forShare?"Pratinjau sebelum dikirim":"Gambar tagihan"}</span><h2>${forShare?"Cek dulu gambarnya":"Gambar tagihan"}</h2></div></div>
       <div class="shot"><img src="${shotC.url}" alt="Gambar ringkasan tagihan per orang"></div>
-      <p class="small">Tekan lama gambar untuk menyimpan atau membagikan, atau pakai tombol di bawah.</p>
-      ${canShare?`<button type="button" class="btn teal big" data-act="shot-share">${I.share}Bagikan ke WhatsApp/grup</button>`:""}
+      <p class="small">${canShare?(forShare?"Kalau sudah sesuai, tap Kirim lalu pilih WhatsApp dan grup tujuan.":"Tekan lama gambar untuk menyimpan atau membagikan."):"Simpan gambar, lalu kirim dari galeri ke WhatsApp. Bisa juga tekan lama gambarnya."}</p>
+      ${canShare?`<button type="button" class="btn teal big" data-act="shot-share">${I.share}Kirim ke WhatsApp/grup</button>`:""}
       <div class="sacts"><button type="button" class="btn ${canShare?"":"teal"} grow" data-act="shot-save">Simpan gambar</button>${canCopy?`<button type="button" class="btn grow" data-act="shot-copy">Salin gambar</button>`:""}<button type="button" class="btn" data-act="shot-close">Tutup</button></div>`);
   }
   function doShare(){navigator.share({files:[shotFile()],title:"Tagihan split bill"}).catch(e=>{if(e&&e.name!=="AbortError")toast("Tidak bisa membagikan dari sini. Coba Simpan gambar.");});}
