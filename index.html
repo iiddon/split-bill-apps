@@ -221,6 +221,9 @@ label.iconbtn{position:relative;cursor:pointer;color:var(--ink)}
 .setbox{background:var(--bg);border-radius:18px;padding:14px;display:flex;flex-direction:column;gap:12px}
 .setbox>b{font-size:14px}
 .setbox .inp{background:#fff}
+.mono{font-family:ui-monospace,"SFMono-Regular",Menlo,monospace;font-size:14px;font-weight:700;letter-spacing:.04em;color:var(--teal-ink)}
+.admacts{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.admacts .step button{width:30px;height:30px;border-radius:9px;font-size:15px}
 .acts2{margin:18px 18px 0;display:flex;flex-direction:column;gap:10px}
 .acts2 .row{display:flex;gap:10px}
 .acts2 .row .btn{flex:1}
@@ -336,6 +339,15 @@ label.iconbtn{position:relative;cursor:pointer;color:var(--ink)}
           charges:(o.charges||[]).map(c=>({id:c.id||uid(),name:c.name,pct:hasPct(c)?c.pct:null,amount:c.amount||0}))};
         saveLocal();
       }
+    }catch(e){}
+  })();
+  let inviteApplied=false;
+  (function readInvite(){
+    if(window.claude)return;
+    try{
+      const q=new URLSearchParams(location.search);const sv=q.get("server"),kd=q.get("kode");
+      if(sv&&kd&&/^(https:\/\/[^\s/]+|http:\/\/localhost)/.test(sv)){S.settings.workerUrl=sv.trim();S.settings.accessCode=kd.trim();S.settingsUpdatedAt=Date.now();saveLocal();inviteApplied=true;}
+      if(q.has("server")||q.has("kode"))history.replaceState(null,"",location.pathname+location.hash);
     }catch(e){}
   })();
   const cur=()=>S.bills[S.curId];
@@ -971,6 +983,7 @@ label.iconbtn{position:relative;cursor:pointer;color:var(--ink)}
         <label class="lbl">Alamat server<input class="inp" id="setWorker" value="${esc(d.workerUrl||"")}" placeholder="https://splitbill.namakamu.workers.dev" autocomplete="off" inputmode="url"></label>
         <label class="lbl">Kode akses<input class="inp" id="setCode" value="${esc(d.accessCode||"")}" placeholder="Kode yang kamu buat di server" autocomplete="off"></label>
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button type="button" class="btn sm" data-act="test-worker">Tes koneksi</button><span class="small" id="testRes"></span></div>
+        ${d.workerUrl?`<button type="button" class="btn sm" data-act="admin-open" style="align-self:flex-start">Kelola kode akses (pemilik)</button>`:""}
         <p class="small">Kosongkan alamat server untuk memakai OCR di HP (gratis, tapi kurang akurat).</p></div>`}
       <div class="setbox"><b>Cadangan data</b>
         <p class="small">${S.remote==="cloud"?"Data tersimpan di akunmu. Cadangan berguna untuk dipindah ke web app.":"Data hanya tersimpan di HP ini. Unduh cadangan secara berkala supaya tidak hilang."}</p>
@@ -1007,6 +1020,67 @@ label.iconbtn{position:relative;cursor:pointer;color:var(--ink)}
       <div class="sacts"><label class="btn grow">${I.cam}Ganti foto<input type="file" accept="image/*" data-attach="${b.id}" style="position:absolute;opacity:0;width:1px;height:1px"></label><button type="button" class="btn danger" data-act="photo-del" data-id="${b.id}">Hapus foto</button><button type="button" class="btn" data-act="sheet-done">Tutup</button></div>`);
     loadPhoto(id).then(src=>{const box=$("photoBox");if(!box)return;
       box.innerHTML=src?`<img src="${src}" alt="Foto struk ${esc(b.title)}">`:`<p class="small" style="padding:20px;text-align:center">Foto struk belum tersedia di perangkat ini. Kalau tersimpan di akun, coba buka lagi sebentar lagi.</p>`;});
+  }
+  const ADM={code:(()=>{try{return localStorage.getItem("splitbill-admin")||"";}catch(e){return "";}})(),data:null,err:"",busy:false};
+  async function adminCall(body){
+    const r=await fetch(workerBase()+"/admin",{method:"POST",headers:{"content-type":"application/json","x-admin-code":ADM.code},body:JSON.stringify(body)});
+    let j={};try{j=await r.json();}catch(e){}
+    if(!r.ok){const e=new Error(j.error||`Gagal (kode ${r.status}).`);e.status=r.status;throw e;}
+    return j;
+  }
+  const appLink=()=>location.origin+location.pathname;
+  const inviteLink=c=>`${appLink()}?server=${encodeURIComponent(workerBase())}&kode=${encodeURIComponent(c)}`;
+  const inviteMsg=x=>`Hai ${x.name}! Kamu bisa pakai aplikasi Split Bill Struk buat bagi tagihan dari foto struk.\n\nBuka link ini di HP kamu, kode aksesnya otomatis terpasang:\n${inviteLink(x.code)}\n\nLalu pilih menu ⋮ → Instal aplikasi.\nKode akses kamu: ${x.code} (hanya bisa dipakai di 1 HP).`;
+  async function adminLoad(){
+    ADM.busy=true;ADM.err="";renderAdmin();
+    try{ADM.data=await adminCall({action:"list"});}
+    catch(e){ADM.err=e.message;if(e.status===401){ADM.code="";try{localStorage.removeItem("splitbill-admin");}catch(x){}}ADM.data=null;}
+    ADM.busy=false;renderAdmin();
+  }
+  function sheetAdmin(){S.sheet={type:"admin"};if(ADM.code)adminLoad();else renderAdmin();}
+  function renderAdmin(){
+    if(!S.sheet||S.sheet.type!=="admin")return;
+    if(!workerBase()){openSheet(`${grab}<div class="sh"><h2>Kelola kode akses</h2></div><p class="small">Isi dan simpan alamat server di Pengaturan dulu.</p><button type="button" class="btn" data-act="sheet-done">Tutup</button>`);return;}
+    if(!ADM.code){
+      openSheet(`${grab}<div class="sh"><h2>Kelola kode akses</h2></div>
+        <p class="small">Masukkan kode admin (ADMIN_CODE di Cloudflare). Hanya kamu sebagai pemilik yang perlu ini.</p>
+        ${ADM.err?`<p class="small" style="color:var(--danger)">${esc(ADM.err)}</p>`:""}
+        <form class="frow" data-form="adm-login"><label class="lbl">Kode admin<input class="inp" id="admCode" type="password" autocomplete="off"></label><button class="btn teal" type="submit">Masuk</button></form>
+        <button type="button" class="btn" data-act="sheet-done">Tutup</button>`);
+      setTimeout(()=>{const f=$("admCode");f&&f.focus();},60);return;
+    }
+    const d=ADM.data;
+    const card=x=>{
+      const st=x.revoked?`<span class="pill warn">Dicabut</span>`:x.bound?`<span class="pill ok">Terkunci ke 1 HP</span>`:`<span class="pill todo">Belum dipakai</span>`;
+      return `<div class="dcard">
+        <div class="dh"><div class="dt"><b>${esc(x.name)}</b><span class="mono">${esc(x.code)}</span></div>${st}</div>
+        <div class="small num">Hari ini ${x.today}/${x.limit} scan · total ${x.total}${x.lastUsed?` · terakhir ${relDate(Date.parse(x.lastUsed)).toLowerCase()}`:""}</div>
+        <div class="admacts">
+          <a class="tagih" href="${esc(waHref(inviteMsg(x)))}" target="_blank" rel="noopener">${I.chat}Kirim undangan</a>
+          <button type="button" class="paybtn" data-act="adm-copy" data-code="${esc(x.code)}">Salin link</button>
+          <span class="step" style="gap:4px"><button type="button" data-act="adm-limit" data-code="${esc(x.code)}" data-v="${x.limit-1}" aria-label="Kurangi batas ${esc(x.name)}" ${x.limit<=1?"disabled":""}>−</button><b class="num" style="min-width:auto;font-size:13px;padding:0 4px">${x.limit}/hari</b><button type="button" data-act="adm-limit" data-code="${esc(x.code)}" data-v="${x.limit+1}" aria-label="Tambah batas ${esc(x.name)}">+</button></span>
+        </div>
+        <div class="admacts">
+          ${x.bound?`<button type="button" class="paybtn" data-act="adm-do" data-a="reset" data-code="${esc(x.code)}">Reset HP</button>`:""}
+          <button type="button" class="paybtn" data-act="adm-do" data-a="${x.revoked?"restore":"revoke"}" data-code="${esc(x.code)}">${x.revoked?"Aktifkan lagi":"Cabut"}</button>
+          <button type="button" class="paybtn" style="color:var(--danger)" data-act="adm-del" data-code="${esc(x.code)}">Hapus</button>
+        </div></div>`;};
+    openSheet(`${grab}<div class="sh"><div style="display:flex;flex-direction:column;gap:2px"><span class="k">Pemilik</span><h2>Kelola kode akses</h2></div></div>
+      ${ADM.err?`<p class="small" style="color:var(--danger)">${esc(ADM.err)}</p>`:""}
+      ${d?`<p class="small num">Pemakaianmu hari ini: ${d.owner.today}/${d.owner.limit} scan.</p>`:""}
+      <form class="setbox" data-form="adm-create"><b>Buat kode untuk teman</b>
+        <div class="frow"><label class="lbl">Nama teman<input class="inp" id="admName" placeholder="mis. Rina" autocomplete="off"></label>
+        <label class="lbl" style="flex:0 0 96px">Scan/hari<input class="inp" id="admLimit" inputmode="numeric" value="10"></label></div>
+        <button class="btn teal" type="submit" ${ADM.busy?"disabled":""}>Buat kode</button></form>
+      ${ADM.busy&&!d?`<div class="spin" aria-hidden="true"></div>`:""}
+      ${d?(d.codes.length?`<div style="display:flex;flex-direction:column;gap:10px">${d.codes.map(card).join("")}</div>`:`<p class="small">Belum ada kode untuk teman.</p>`):""}
+      <p class="small">Setiap kode hanya bisa dipakai di 1 HP. Kalau temanmu ganti HP atau menghapus data aplikasi, tekan Reset HP.</p>
+      <div class="sacts"><button type="button" class="btn" data-act="adm-logout">Keluar admin</button><button type="button" class="btn teal grow" data-act="sheet-done">Selesai</button></div>`);
+  }
+  async function adminDo(body,okMsg){
+    ADM.busy=true;renderAdmin();
+    try{const j=await adminCall(body);if(okMsg)toast(typeof okMsg==="function"?okMsg(j):okMsg);}catch(e){ADM.err=e.message;}
+    await adminLoad();
   }
   function sheetGroup(gid,preset){
     const g=gid?S.groups.find(x=>x.id===gid):null;
@@ -1092,6 +1166,12 @@ label.iconbtn{position:relative;cursor:pointer;color:var(--ink)}
       saveSettings();if(!sampleFn){S.aiMode=S.settings.workerUrl?"worker":"ocr";if(S.aiMode==="ocr")loadTesseract().catch(()=>{});}
       closeSheet();render();toast("Pengaturan disimpan");},
     "test-worker":()=>testWorker(),
+    "admin-open":()=>{if($("setWorker")){const v=$("setWorker").value.trim();if(v&&v!==S.settings.workerUrl){S.settings.workerUrl=v;saveSettings();}}sheetAdmin();},
+    "adm-logout":()=>{ADM.code="";ADM.data=null;try{localStorage.removeItem("splitbill-admin");}catch(e){}closeSheet();render();},
+    "adm-copy":el=>{const x=ADM.data.codes.find(c=>c.code===el.dataset.code);if(!x)return;navigator.clipboard.writeText(inviteMsg(x)).then(()=>toast("Undangan disalin"),()=>toast("Tidak bisa menyalin otomatis di sini"));},
+    "adm-do":el=>{const a=el.dataset.a;adminDo({action:a,code:el.dataset.code},{reset:"HP direset, kode bisa dipakai di HP baru",revoke:"Kode dicabut",restore:"Kode aktif lagi"}[a]);},
+    "adm-limit":el=>adminDo({action:"limit",code:el.dataset.code,limit:Number(el.dataset.v)}),
+    "adm-del":el=>armed(el,"Tap lagi",()=>adminDo({action:"delete",code:el.dataset.code},"Kode dihapus")),
     "backup-dl":()=>backupDownload($("bkPhotos")&&$("bkPhotos").checked),
     "settle-all":el=>armed(el,"Tap lagi",()=>{const k=el.dataset.name.trim().toLowerCase();billList().forEach(b=>{let ch=false;b.people.forEach(p=>{if(p.name.trim().toLowerCase()===k&&!p.paid){p.paid=true;ch=true;}});if(ch)saveBill(b);});render();toast(`Semua tagihan ${el.dataset.name} ditandai lunas`);}),
     "pick-all":()=>{commitAssign();const b=cur();const it=b.items.find(i=>i.id===S.sheet.itemId);
@@ -1180,6 +1260,9 @@ label.iconbtn{position:relative;cursor:pointer;color:var(--ink)}
     if(f==="add-person"){const inp=$("pName");const v=inp.value;if(!v.trim())return;if(addPerson(b,v)){saveBill(b);render();inp.value="";}else toast("Nama itu sudah ada");sheetAddPerson();}
     if(f==="rename-person"){const p=b.people.find(x=>x.id===S.sheet.pid);const v=$("pRename").value.trim();if(p&&v){p.name=v;saveBill(b);}closeSheet();render();}
     if(f==="rename-bill"){const v=$("bTitle").value.trim();if(v){b.title=v;saveBill(b);}closeSheet();render();}
+    if(f==="adm-login"){const v=$("admCode").value.trim();if(!v)return;ADM.code=v;try{localStorage.setItem("splitbill-admin",v);}catch(x){}adminLoad();return;}
+    if(f==="adm-create"){const n=$("admName").value.trim();if(!n){$("admName").focus();return;}const lim=Math.max(1,num($("admLimit").value)||10);
+      adminDo({action:"create",name:n,limit:lim},j=>`Kode untuk ${n}: ${j.code}`);return;}
     if(f==="ev-create"){const v=$("evName").value.trim();if(!v){$("evName").focus();return;}const ev={id:uid(),name:v,createdAt:Date.now()};S.events.unshift(ev);saveEvents();b.eventId=ev.id;saveBill(b);closeSheet();render();toast(`Acara ${v} dibuat`);}
     if(f==="ev-rename"){const ev=evOf(S.eventId);const v=$("evTitle").value.trim();if(ev&&v){ev.name=v;saveEvents();}closeSheet();render();}
     if(f==="g-add"){const inp=$("gMember");const v=inp.value.trim();if(!v)return;if(S.sheet.draft.members.some(m=>m.toLowerCase()===v.toLowerCase())){toast("Nama itu sudah ada");return;}
@@ -1498,11 +1581,16 @@ Aturan:
 
 
   const workerBase=()=>String(S.settings.workerUrl||"").trim().replace(/\/+$/,"");
+  function deviceId(){
+    let d=null;try{d=localStorage.getItem("splitbill-device");}catch(e){}
+    if(!d||!/^[a-z0-9-]{8,64}$/i.test(d)){d=(crypto.randomUUID?crypto.randomUUID():uid()+"-"+uid());try{localStorage.setItem("splitbill-device",d);}catch(e){}}
+    return d;
+  }
   async function readWithWorker(file){
     const blob=await shrink(file);
     const b64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(",")[1]||"");r.onerror=rej;r.readAsDataURL(blob);});
     const ctl=new AbortController();const t=setTimeout(()=>ctl.abort(),90000);let resp;
-    try{resp=await fetch(workerBase(),{method:"POST",headers:{"content-type":"text/plain","x-access-code":S.settings.accessCode||""},body:b64,signal:ctl.signal});}
+    try{resp=await fetch(workerBase(),{method:"POST",headers:{"content-type":"text/plain","x-access-code":S.settings.accessCode||"","x-device-id":deviceId()},body:b64,signal:ctl.signal});}
     catch(e){throw new Error(e&&e.name==="AbortError"?"Server terlalu lama menjawab. Coba lagi.":"Server pembaca struk tidak bisa dihubungi. Cek internet atau alamat server di Pengaturan.");}
     finally{clearTimeout(t);}
     let j={};try{j=await resp.json();}catch(e){}
@@ -1513,8 +1601,8 @@ Aturan:
     const out=$("testRes");const say=(t,ok)=>{if(out){out.textContent=t;out.style.color=ok?"var(--teal-ink)":"var(--danger)";}};
     const url=$("setWorker").value.trim().replace(/\/+$/,"");if(!url){say("Isi alamat server dulu.");return;}
     say("Menghubungi server…",true);
-    try{const r=await fetch(url,{headers:{"x-access-code":$("setCode").value.trim()}});let j={};try{j=await r.json();}catch(e){}
-      if(r.ok&&j.ok)say(`Tersambung. Batas hari ini: ${j.remaining==null?"tanpa batas":j.remaining+" scan lagi"}.`,true);
+    try{const r=await fetch(url,{headers:{"x-access-code":$("setCode").value.trim(),"x-device-id":deviceId()}});let j={};try{j=await r.json();}catch(e){}
+      if(r.ok&&j.ok)say(`Tersambung sebagai ${j.name||"pengguna"}. ${j.remaining==null?"Tanpa batas harian.":`Sisa hari ini: ${j.remaining} dari ${j.limit} scan.`}`,true);
       else say(j.error||`Gagal (kode ${r.status}).`);}
     catch(e){say("Tidak bisa terhubung. Cek alamat server dan izin ALLOWED_ORIGIN.");}
   }
@@ -1568,6 +1656,7 @@ Aturan:
 
   if(location.hash.endsWith(SH)){replacing=false;location.replace(location.hash.slice(0,-SH.length));}
   stk.push(location.hash||"#beranda");route();
+  if(inviteApplied)setTimeout(()=>toast("Kode akses dari undangan sudah terpasang"),400);
   (async()=>{
     try{
       const w=window.claude;const s=w&&w.use?await w.use("sample"):null;

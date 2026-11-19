@@ -56,10 +56,12 @@ Catat juga **origin**-nya, yaitu alamat tanpa nama repo: `https://USERNAME.githu
    | `ANTHROPIC_API_KEY` | Secret | API key dari Langkah 2 |
    | `ACCESS_CODE` | Secret | Kode akses buatanmu, minimal 8 karakter, mis. `kopisusu-0811` |
    | `ALLOWED_ORIGIN` | Text | `https://USERNAME.github.io` (tanpa `/split-bill-apps` dan tanpa garis miring di akhir) |
-   | `DAILY_LIMIT` | Text | Opsional. Batas scan per hari, default `50` |
+   | `ADMIN_CODE` | Secret | Kode admin untuk menu **Kelola kode akses**, minimal 12 karakter. Jangan sama dengan `ACCESS_CODE`. |
+   | `DAILY_LIMIT` | Text | Opsional. Batas scan harian kamu sendiri, default `50` |
+   | `USER_LIMIT` | Text | Opsional. Batas scan harian default untuk kode teman, default `10` |
 
    Lalu klik **Deploy**.
-5. **Opsional tapi disarankan, untuk batas harian:** buka **Storage & Databases → KV → Create namespace** dengan nama `splitbill-limits`. Kembali ke Worker, lalu **Settings → Bindings → Add → KV namespace**, isi *Variable name* `LIMITS`, pilih namespace tadi, dan **Deploy**. Tanpa langkah ini, server tetap jalan tapi tidak ada batas jumlah scan per hari.
+5. **Pasang KV (wajib untuk kode per teman dan batas harian):** buka **Storage & Databases → KV → Create namespace** dengan nama `splitbill-limits`. Kembali ke Worker, lalu **Settings → Bindings → Add binding → KV namespace**, isi *Variable name* `LIMITS`, pilih namespace tadi, dan simpan. Tanpa KV, hanya kode akses kamu (`ACCESS_CODE`) yang bisa dipakai dan tidak ada batas harian.
 6. Catat alamat Worker kamu, bentuknya `https://splitbill.NAMAKAMU.workers.dev`.
 
 ## Langkah 4 — Sambungkan aplikasi ke server
@@ -68,7 +70,7 @@ Catat juga **origin**-nya, yaitu alamat tanpa nama repo: `https://USERNAME.githu
 2. Tap ikon **Pengaturan** di kanan atas Beranda.
 3. Isi **Alamat server** (alamat Worker) dan **Kode akses** (sama dengan `ACCESS_CODE`).
 4. Tap **Tes koneksi**. Kalau muncul "Tersambung", tap **Simpan**.
-5. Label di Beranda berubah dari "Mode OCR" menjadi **"Dibaca Claude"**.
+5. Label "Mode OCR" di Beranda hilang, artinya struk sekarang dibaca lewat server.
 
 ## Langkah 5 — Install di HP
 
@@ -77,7 +79,26 @@ Catat juga **origin**-nya, yaitu alamat tanpa nama repo: `https://USERNAME.githu
 
 Setelah ter-install, aplikasi punya ikon sendiri dan terbuka tanpa address bar. Isi Pengaturan (Langkah 4) di HP itu juga, karena tiap HP menyimpan pengaturannya sendiri.
 
-## Langkah 6 (opsional) — Pindahkan data dari versi di Claude
+## Langkah 6 — Bagikan ke teman dengan kode akses masing-masing
+
+Setiap teman mendapat kode sendiri yang **terkunci ke HP pertama yang memakainya**. Kalau kodenya diteruskan ke orang lain, HP kedua akan ditolak.
+
+1. Di aplikasi: **Pengaturan → Kelola kode akses (pemilik)**. Masukkan `ADMIN_CODE` sekali saja.
+2. Isi nama teman dan batas scan per hari, lalu tap **Buat kode**.
+3. Tap **Kirim undangan** untuk membuka WhatsApp dengan pesan siap kirim, atau **Salin link**. Pesannya berisi link khusus.
+4. Teman cukup membuka link itu di HP-nya. Alamat server dan kode akses langsung terisi otomatis, lalu mereka tinggal install aplikasinya.
+
+Dari menu yang sama kamu bisa:
+- melihat pemakaian tiap orang (hari ini dan total)
+- mengubah batas scan per hari dengan tombol − / +
+- **Reset HP** kalau teman ganti HP atau menghapus data aplikasi
+- **Cabut** untuk menghentikan akses (bisa diaktifkan lagi), atau **Hapus** kodenya
+
+Kode akses kamu sendiri (`ACCESS_CODE`) tidak dikunci ke HP, jadi bisa dipakai di beberapa perangkatmu.
+
+> Penguncian ini mencegah kode dibagi-bagi secara iseng, tapi bukan pengaman tingkat bank. Untuk lingkup teman sendiri, ini sudah cukup.
+
+## Langkah 7 (opsional) — Pindahkan data dari versi di Claude
 
 1. Di aplikasi versi Claude (artifact): **Pengaturan → Unduh cadangan**. Centang "Sertakan foto struk" kalau perlu.
 2. Di web app: **Pengaturan → Pulihkan dari file**, lalu pilih file cadangan tadi.
@@ -97,9 +118,9 @@ Mau lebih hemat? Tambahkan variabel `MODEL` dengan isi `claude-haiku-5-5` di Clo
 ## Keamanan
 
 - API key hanya ada di Cloudflare. Kalau bocor, hapus key itu di Anthropic Console dan buat yang baru.
-- Siapa pun yang tahu **alamat aplikasi + kode akses** bisa scan struk memakai saldomu. Bagikan kode hanya ke teman yang kamu izinkan. Kode bisa diganti kapan saja di Cloudflare (`ACCESS_CODE`).
+- Siapa pun yang memegang kode akses yang masih aktif bisa scan struk memakai saldomu. Beri tiap teman kode sendiri lewat **Kelola kode akses**: kode terkunci ke satu HP, punya batas harian, dan bisa dicabut kapan saja. Kode milikmu (`ACCESS_CODE`) jangan dibagikan; ganti di Cloudflare kalau sempat bocor.
 - Server hanya mau membaca struk (perintahnya dikunci di server), jadi tidak bisa dipakai orang untuk keperluan lain.
-- Batas harian (`DAILY_LIMIT` + KV) dan spend limit di Anthropic menjadi rem kalau ada penyalahgunaan.
+- Batas harian per orang (butuh KV) dan spend limit di Anthropic menjadi rem kalau ada penyalahgunaan.
 
 ## Data dan privasi
 
@@ -116,7 +137,11 @@ Mau lebih hemat? Tambahkan variabel `MODEL` dengan isi `claude-haiku-5-5` di Clo
 | "Server belum lengkap" | `ANTHROPIC_API_KEY` atau `ACCESS_CODE` belum diisi, atau Worker belum di-Deploy ulang setelah diisi. |
 | "API key Anthropic tidak valid" | Key salah salin atau sudah dihapus. Buat key baru dan ganti di Cloudflare. |
 | "Saldo API Anthropic habis" | Isi ulang saldo di console.anthropic.com. |
-| "Batas scan hari ini sudah habis" | Naikkan `DAILY_LIMIT` di Cloudflare, atau tunggu besok (reset pukul 07.00 WIB). |
+| "Batas scan hari ini sudah habis" | Untuk teman: naikkan batasnya di **Kelola kode akses**. Untuk kamu: naikkan `DAILY_LIMIT` di Cloudflare. Atau tunggu besok (reset pukul 07.00 WIB). |
+| "Kode ini sudah dipakai di HP lain" | Kode teman terkunci ke HP lain. Kalau memang HP-nya ganti, tekan **Reset HP** di Kelola kode akses. |
+| "Kode akses ini sudah dicabut" | Aktifkan lagi lewat **Kelola kode akses**, atau buat kode baru. |
+| "Perbarui aplikasi ke versi terbaru dulu" | Aplikasi di HP masih versi lama. Tutup lalu buka lagi aplikasinya. |
+| "Kode admin salah" / "Pasang KV namespace" | Cek `ADMIN_CODE` dan pastikan KV `LIMITS` sudah terpasang (Langkah 3 poin 5). |
 | Tes koneksi: "Tidak bisa terhubung" | Cek alamat Worker (harus diawali `https://`) dan pastikan Worker sudah di-Deploy. |
 | Menu "Instal aplikasi" tidak muncul | Pastikan dibuka lewat alamat GitHub Pages (`https://`) di Chrome, bukan dari file yang diunduh. |
 | Versi baru tidak muncul setelah upload ulang | Tutup aplikasi lalu buka lagi, kalau perlu dua kali. |
