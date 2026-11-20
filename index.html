@@ -224,6 +224,11 @@ label.iconbtn{position:relative;cursor:pointer;color:var(--ink)}
 .mono{font-family:ui-monospace,"SFMono-Regular",Menlo,monospace;font-size:14px;font-weight:700;letter-spacing:.04em;color:var(--teal-ink)}
 .admacts{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .admacts .step button{width:30px;height:30px;border-radius:9px;font-size:15px}
+.invbox{margin:14px 18px 0;background:var(--yellow-soft);border-radius:20px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;color:var(--yellow-ink)}
+.invbox div:first-child{display:flex;flex-direction:column;gap:2px}
+.invbox b{color:#4d3500;font-size:15px}
+.invbox span{font-size:13px}
+.invbox .ia{display:flex;gap:8px;flex-wrap:wrap}
 .acts2{margin:18px 18px 0;display:flex;flex-direction:column;gap:10px}
 .acts2 .row{display:flex;gap:10px}
 .acts2 .row .btn{flex:1}
@@ -342,12 +347,24 @@ label.iconbtn{position:relative;cursor:pointer;color:var(--ink)}
     }catch(e){}
   })();
   let inviteApplied=false;
+  const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+  const isStandalone=()=>!!(window.navigator.standalone||(window.matchMedia&&matchMedia("(display-mode: standalone)").matches));
+  const validServer=sv=>/^(https:\/\/[^\s/]+|http:\/\/localhost)/.test(sv||"");
+  function parseInvite(text){
+    const urls=String(text||"").match(/https?:\/\/[^\s<>"']+/g)||[];
+    for(const raw of urls){try{const u=new URL(raw.replace(/[).,!>]+$/,""));const sv=u.searchParams.get("server"),kd=u.searchParams.get("kode");if(sv&&kd&&validServer(sv))return {sv:sv.trim(),kd:kd.trim()};}catch(e){}}
+    return null;
+  }
+  function applyInvite(inv){S.settings.workerUrl=inv.sv;S.settings.accessCode=inv.kd;S.settingsUpdatedAt=Date.now();saveLocal();}
   (function readInvite(){
     if(window.claude)return;
     try{
-      const q=new URLSearchParams(location.search);const sv=q.get("server"),kd=q.get("kode");
-      if(sv&&kd&&/^(https:\/\/[^\s/]+|http:\/\/localhost)/.test(sv)){S.settings.workerUrl=sv.trim();S.settings.accessCode=kd.trim();S.settingsUpdatedAt=Date.now();saveLocal();inviteApplied=true;}
-      if(q.has("server")||q.has("kode"))history.replaceState(null,"",location.pathname+location.hash);
+      const inv=parseInvite(location.href);
+      if(inv){applyInvite(inv);inviteApplied=true;}
+      // iPhone: the Home Screen app starts with its own empty storage, so leave the invite in the address
+      // while in Safari; adding to Home Screen from here can then carry it into the app.
+      const q=new URLSearchParams(location.search);
+      if((q.has("server")||q.has("kode"))&&!(isIOS&&!isStandalone()))history.replaceState(null,"",location.pathname+location.hash);
     }catch(e){}
   })();
   const cur=()=>S.bills[S.curId];
@@ -611,6 +628,8 @@ label.iconbtn{position:relative;cursor:pointer;color:var(--ink)}
         <label class="btn gal" aria-label="Pilih foto dari galeri">${I.gal}${scanInput("")}</label>
       </div>
     </section>
+    ${!window.claude&&!S.settings.workerUrl&&!(()=>{try{return localStorage.getItem("splitbill-noinvite");}catch(e){return null;}})()?`<div class="invbox"><div><b>Dapat undangan dari teman?</b><span>Tempel link undangannya supaya struk terbaca otomatis.</span></div>
+      <div class="ia"><button type="button" class="btn sm teal" data-act="invite-open">Tempel undangan</button><button type="button" class="btn sm ghost" data-act="inv-dismiss">Nanti saja</button></div></div>`:""}
     <div class="quick">
       <button type="button" class="btn" data-act="new-manual">${I.plus}Isi manual</button>
       <button type="button" class="btn" data-act="nav" data-view="friends">${I.users}Grup tersimpan</button>
@@ -983,6 +1002,7 @@ label.iconbtn{position:relative;cursor:pointer;color:var(--ink)}
         <label class="lbl">Alamat server<input class="inp" id="setWorker" value="${esc(d.workerUrl||"")}" placeholder="https://splitbill.namakamu.workers.dev" autocomplete="off" inputmode="url"></label>
         <label class="lbl">Kode akses<input class="inp" id="setCode" value="${esc(d.accessCode||"")}" placeholder="Kode yang kamu buat di server" autocomplete="off"></label>
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button type="button" class="btn sm" data-act="test-worker">Tes koneksi</button><span class="small" id="testRes"></span></div>
+        <button type="button" class="btn sm" data-act="invite-open" style="align-self:flex-start">Tempel link undangan</button>
         ${d.workerUrl?`<button type="button" class="btn sm" data-act="admin-open" style="align-self:flex-start">Kelola kode akses (pemilik)</button>`:""}
         <p class="small">Kosongkan alamat server untuk memakai OCR di HP (gratis, tapi kurang akurat).</p></div>`}
       <div class="setbox"><b>Cadangan data</b>
@@ -1030,7 +1050,7 @@ label.iconbtn{position:relative;cursor:pointer;color:var(--ink)}
   }
   const appLink=()=>location.origin+location.pathname;
   const inviteLink=c=>`${appLink()}?server=${encodeURIComponent(workerBase())}&kode=${encodeURIComponent(c)}`;
-  const inviteMsg=x=>`Hai ${x.name}! Kamu bisa pakai aplikasi Split Bill Struk buat bagi tagihan dari foto struk.\n\nBuka link ini di HP kamu, kode aksesnya otomatis terpasang:\n${inviteLink(x.code)}\n\nLalu pilih menu ⋮ → Instal aplikasi.\nKode akses kamu: ${x.code} (hanya bisa dipakai di 1 HP).`;
+  const inviteMsg=x=>`Hai ${x.name}! Kamu bisa pakai aplikasi Split Bill Struk buat bagi tagihan dari foto struk.\n\nLink undangan kamu:\n${inviteLink(x.code)}\n\nAndroid: buka link di Chrome, lalu menu ⋮ → Instal aplikasi.\niPhone: buka link di Safari → tombol Bagikan → Tambah ke Layar Utama. Buka aplikasinya, kalau kode belum terisi tap "Tempel undangan" di Beranda lalu tempel link ini.\n\nKode akses kamu: ${x.code} (hanya bisa dipakai di 1 HP).`;
   async function adminLoad(){
     ADM.busy=true;ADM.err="";renderAdmin();
     try{ADM.data=await adminCall({action:"list"});}
@@ -1081,6 +1101,19 @@ label.iconbtn{position:relative;cursor:pointer;color:var(--ink)}
     ADM.busy=true;renderAdmin();
     try{const j=await adminCall(body);if(okMsg)toast(typeof okMsg==="function"?okMsg(j):okMsg);}catch(e){ADM.err=e.message;}
     await adminLoad();
+  }
+  async function checkServer(){
+    try{const r=await workerFetch(workerBase(),{headers:{"x-access-code":S.settings.accessCode||""}});let j={};try{j=await r.json();}catch(e){}
+      return r.ok&&j.ok?{ok:true,msg:`Tersambung sebagai ${j.name||"pengguna"}`}:{ok:false,msg:j.error||`Gagal (kode ${r.status})`};}
+    catch(e){return {ok:false,msg:"Server tidak bisa dihubungi dari jaringan ini. Coba ganti jaringan (WiFi/data seluler)."};}
+  }
+  function sheetInvite(){
+    S.sheet={type:"invite"};
+    openSheet(`${grab}<div class="sh"><h2>Tempel link undangan</h2></div>
+      <p class="small">Salin link undangan dari chat WhatsApp, lalu tempel di sini. Alamat server dan kode akses akan terisi otomatis.</p>
+      <label class="lbl">Link atau pesan undangan<textarea class="inp ta" id="invText" rows="4" placeholder="https://…?server=…&kode=…"></textarea></label>
+      ${navigator.clipboard&&navigator.clipboard.readText?`<button type="button" class="btn" data-act="inv-paste">Tempel dari clipboard</button>`:""}
+      <div class="sacts"><button type="button" class="btn" data-act="sheet-done">Batal</button><button type="button" class="btn teal big grow" data-act="inv-apply">Pakai undangan</button></div>`);
   }
   function sheetGroup(gid,preset){
     const g=gid?S.groups.find(x=>x.id===gid):null;
@@ -1166,6 +1199,13 @@ label.iconbtn{position:relative;cursor:pointer;color:var(--ink)}
       saveSettings();if(!sampleFn){S.aiMode=S.settings.workerUrl?"worker":"ocr";if(S.aiMode==="ocr")loadTesseract().catch(()=>{});}
       closeSheet();render();toast("Pengaturan disimpan");},
     "test-worker":()=>testWorker(),
+    "invite-open":()=>sheetInvite(),
+    "inv-dismiss":()=>{try{localStorage.setItem("splitbill-noinvite","1");}catch(e){}render();},
+    "inv-paste":async()=>{try{const t=await navigator.clipboard.readText();if(t)$("invText").value=t;else toast("Clipboard kosong");}catch(e){toast("Tidak bisa membaca clipboard. Tekan lama kolomnya lalu pilih Tempel.");}},
+    "inv-apply":async()=>{const inv=parseInvite($("invText").value);
+      if(!inv){toast("Link undangan tidak dikenali. Pastikan seluruh link ikut tersalin.");return;}
+      applyInvite(inv);saveSettings();if(!sampleFn)S.aiMode="worker";closeSheet();render();toast("Mengecek koneksi…");
+      const r=await checkServer();toast(r.ok?`${r.msg}. Siap scan struk!`:r.msg);},
     "admin-open":()=>{if($("setWorker")){const v=$("setWorker").value.trim();if(v&&v!==S.settings.workerUrl){S.settings.workerUrl=v;saveSettings();}}sheetAdmin();},
     "adm-logout":()=>{ADM.code="";ADM.data=null;try{localStorage.removeItem("splitbill-admin");}catch(e){}closeSheet();render();},
     "adm-copy":el=>{const x=ADM.data.codes.find(c=>c.code===el.dataset.code);if(!x)return;navigator.clipboard.writeText(inviteMsg(x)).then(()=>toast("Undangan disalin"),()=>toast("Tidak bisa menyalin otomatis di sini"));},
